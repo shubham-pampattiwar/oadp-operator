@@ -43,6 +43,10 @@ In order to use the built image, please update the `operator.yaml` file. Replace
 ```
 sed -i 's|REPLACE_IMAGE|<REGISTRY_URL>|g' deploy/operator.yaml
 ```
+For OSX, use the following command:
+```
+sed -i "" 's|REPLACE_IMAGE|<REGISTRY_URL>|g' deploy/operator.yaml
+```
 
 Before proceeding further make sure the `REPLACE_IMAGE` place holder is updated in the `operator.yaml` file as discussed above.
 
@@ -62,11 +66,11 @@ To install OADP operator and the essential Velero components follow the steps gi
   ```
   oc create -f deploy/
   ```
-- Create the Velero custom resource definition:
+- Deploy the Velero custom resource definition:
   ```
   oc create -f deploy/crds/konveyor.openshift.io_veleros_crd.yaml   
   ```
-- Finally, create the Velero CR:
+- Finally, deploy the Velero CR:
   ```
   oc create -f deploy/crds/konveyor.openshift.io_v1alpha1_velero_cr.yaml
   ```
@@ -97,7 +101,7 @@ replicaset.apps/velero-76546b65c8          1         1         1         2m17s
 ``` 
 
 ### Cleanup
-To uninstall all that was performed and clean up, use the following commands:
+For cleaning up the deployed resources, use the following commands:
 ```
 oc delete -f deploy/crds/konveyor.openshift.io_v1alpha1_velero_cr.yaml
 oc delete -f deploy/crds/konveyor.openshift.io_veleros_crd.yaml   
