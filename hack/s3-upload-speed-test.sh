@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Variables
-BUCKET_NAME="shubbam-6109f5e9711c8c58131acdd2f490f451"
-REGION="us-east-1"   
+BUCKET_NAME="<BUCKET_NAME>"
+REGION="us-east-1"
 FILE_SIZE_MB=100        # Size of the file in MB
 TEST_FILE="testfile"
 S3_PATH="s3://$BUCKET_NAME/test-upload-speed"
