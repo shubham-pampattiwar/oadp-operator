@@ -406,6 +406,11 @@ spec:
       kind: NonAdminBackup
       name: nonadminbackups.nac.oadp.openshift.io
       version: v1alpha1
+    - description: UploadSpeedTest is the Schema for the uploadspeedtests API
+      displayName: Upload Speed Test
+      kind: UploadSpeedTest
+      name: uploadspeedtests.oadp.openshift.io
+      version: v1alpha1
   description: |
     **OpenShift API for Data Protection (OADP)** operator sets up and installs
     Velero on the OpenShift platform, allowing users to backup and restore

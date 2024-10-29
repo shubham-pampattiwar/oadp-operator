@@ -75,6 +75,21 @@ metadata:
           }
         },
         {
+          "apiVersion": "oadp.openshift.io/v1alpha1",
+          "kind": "UploadSpeedTest",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "oadp-operator",
+              "app.kubernetes.io/instance": "uploadspeedtest-sample",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "uploadspeedtest",
+              "app.kubernetes.io/part-of": "oadp-operator"
+            },
+            "name": "uploadspeedtest-sample"
+          },
+          "spec": null
+        },
+        {
           "apiVersion": "velero.io/v1",
           "kind": "Backup",
           "metadata": {
@@ -561,6 +576,11 @@ spec:
         displayName: Plugins
         path: plugins
       version: v1
+    - description: UploadSpeedTest is the Schema for the uploadspeedtests API
+      displayName: Upload Speed Test
+      kind: UploadSpeedTest
+      name: uploadspeedtests.oadp.openshift.io
+      version: v1alpha1
     - description: VolumeSnapshotLocation is a location where Velero stores volume
         snapshots.
       displayName: VolumeSnapshotLocation
