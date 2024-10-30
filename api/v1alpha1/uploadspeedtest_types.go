@@ -62,6 +62,7 @@ type UploadSpeedTestStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:resource:path=uploadspeedtests,shortName=ust
 
 // UploadSpeedTest is the Schema for the uploadspeedtests API
 type UploadSpeedTest struct {

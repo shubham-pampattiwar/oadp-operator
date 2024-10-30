@@ -19,8 +19,8 @@ type AWSProvider struct {
 }
 
 // NewAWSProvider inits the AWS client with configuration
-func NewAWSProvider(region, accessKey, secretKey string) (*AWSProvider, error) {
-	creds := credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")
+func NewAWSProvider(region, accessKey, secretAccessKey string) (*AWSProvider, error) {
+	creds := credentials.NewStaticCredentialsProvider(accessKey, secretAccessKey, "")
 	awsCfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(region),
 		config.WithCredentialsProvider(creds),
@@ -36,8 +36,6 @@ func NewAWSProvider(region, accessKey, secretKey string) (*AWSProvider, error) {
 // UploadTest uploads an object to S3 and returns the upload duration in milliseconds.
 func (p *AWSProvider) UploadTest(ctx context.Context, ust *oadpv1alpha1.UploadSpeedTest, fileSize int64, testTimeout time.Duration) (int64, error) {
 	start := time.Now()
-	// TODO check for all params here and extract them and then feed them to PutObject
-	// for e.g: BSL config in UST maybe cloudStorage or velero
 
 	// Prepare upload data
 	data := make([]byte, fileSize)

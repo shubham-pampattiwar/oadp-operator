@@ -11,6 +11,8 @@ spec:
     kind: UploadSpeedTest
     listKind: UploadSpeedTestList
     plural: uploadspeedtests
+    shortNames:
+    - ust
     singular: uploadspeedtest
   scope: Namespaced
   versions:

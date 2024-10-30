@@ -21,9 +21,14 @@ import (
 	"fmt"
 	"github.com/go-logr/logr"
 	"github.com/openshift/oadp-operator/pkg/cloudprovider"
+	"github.com/openshift/oadp-operator/pkg/credentials"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"regexp"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,10 +42,11 @@ import (
 // UploadSpeedTestReconciler reconciles a UploadSpeedTest object
 type UploadSpeedTestReconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
-	Log           logr.Logger
-	Context       context.Context
-	EventRecorder record.EventRecorder
+	NamespacedName types.NamespacedName
+	Scheme         *runtime.Scheme
+	Log            logr.Logger
+	Context        context.Context
+	EventRecorder  record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=oadp.openshift.io,resources=uploadspeedtests,verbs=get;list;watch;create;update;patch;delete
@@ -60,6 +66,7 @@ func (r *UploadSpeedTestReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	// set logger and context
 	r.Log = log.FromContext(ctx)
 	r.Context = ctx
+	r.NamespacedName = req.NamespacedName
 
 	r.Log.Info("Reconciling UploadSpeedTest")
 
@@ -75,16 +82,10 @@ func (r *UploadSpeedTestReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	r.Log.Info(fmt.Sprintf("Fetched UploadSpeedTest %v", ust))
 
-	// TODO: Extract AWS credentials from the secret
-	accessKey := "foo"
-	secretKey := "bar"
-	region := "us-east-1"
-
-	r.Log.Info(fmt.Sprintf("Initializing AWS Provider"))
-	// Init AWSProvider
-	awsProvider, err := cloudprovider.NewAWSProvider(region, accessKey, secretKey)
+	// Initialize the provider instance based on BSL provider field
+	provider, err := r.initializeProvider(ust)
 	if err != nil {
-		r.Log.Error(err, "failed to initialize AWS provider")
+		r.Log.Error(err, "unable to initialize provider")
 		return ctrl.Result{}, err
 	}
 
@@ -103,7 +104,7 @@ func (r *UploadSpeedTestReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	r.Log.Info(fmt.Sprintf("Performing uploadspeed test"))
 	// perform the upload speed test
-	duration, err := awsProvider.UploadTest(r.Context, ust, fileSize, testTimeout)
+	duration, err := provider.UploadTest(r.Context, ust, fileSize, testTimeout)
 	if err != nil {
 		r.Log.Error(err, "UploadTest failed")
 		err = r.updateStatus(r.Context, ust, "Failed", 0, err.Error())
@@ -126,6 +127,35 @@ func (r *UploadSpeedTestReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *UploadSpeedTestReconciler) initializeProvider(ust *oadpv1alpha1.UploadSpeedTest) (cloudprovider.CloudProvider, error) {
+	providerName := ust.Spec.BackupLocation.Velero.Provider
+	region := ust.Spec.BackupLocation.Velero.Config[Region]
+
+	// fetch the credentials from the secret
+	secret, err := r.getProviderSecret(ust.Spec.CloudProviderSecretRef.Name)
+	if err != nil {
+		r.Log.Error(err, "failed to get provider secret")
+		return nil, err
+	}
+
+	switch providerName {
+	case AWSProvider:
+		_, secretKey, _ := r.getSecretNameAndKey(ust.Spec.BackupLocation.Velero.Config, ust.Spec.BackupLocation.Velero.Credential, oadpv1alpha1.DefaultPluginAWS)
+		awsProfile := "default"
+		if value, exists := ust.Spec.BackupLocation.Velero.Config[Profile]; exists {
+			awsProfile = value
+		}
+		accessKeyID, secretAccessKey, err := r.parseAWSSecret(secret, secretKey, awsProfile)
+		if err != nil {
+			r.Log.Error(err, "failed to parse AWS secret")
+			return nil, err
+		}
+		return cloudprovider.NewAWSProvider(region, accessKeyID, secretAccessKey)
+	default:
+		return nil, fmt.Errorf("unsupported cloud provider: %s", providerName)
+	}
 }
 
 // updateStatus is a helper method to update the status of UploadSpeedTest
@@ -152,6 +182,8 @@ func parseFileSize(sizeStr string) (int64, error) {
 		return 0, fmt.Errorf("invalid file size format: %s", sizeStr)
 	}
 
+	unit = strings.ToUpper(unit)
+
 	switch unit {
 	case "B":
 		return size, nil
@@ -170,5 +202,166 @@ func parseFileSize(sizeStr string) (int64, error) {
 func (r *UploadSpeedTestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&oadpv1alpha1.UploadSpeedTest{}).
+		WithEventFilter(uploadSpeedTestPredicate()).
 		Complete(r)
+}
+
+func (r *UploadSpeedTestReconciler) getProviderSecret(secretName string) (corev1.Secret, error) {
+
+	secret := corev1.Secret{}
+	key := types.NamespacedName{
+		Name:      secretName,
+		Namespace: r.NamespacedName.Namespace,
+	}
+	err := r.Get(r.Context, key, &secret)
+
+	if err != nil {
+		return secret, err
+	}
+	originalSecret := secret.DeepCopy()
+	// replace carriage return with new line
+	secret.Data = replaceCarriageReturn(secret.Data, r.Log)
+	r.Client.Patch(r.Context, &secret, client.MergeFrom(originalSecret))
+	return secret, nil
+}
+
+func (r *UploadSpeedTestReconciler) parseAWSSecret(secret corev1.Secret, secretKey string, matchProfile string) (string, string, error) {
+
+	AWSAccessKey, AWSSecretKey, profile := "", "", ""
+	splitString := strings.Split(string(secret.Data[secretKey]), "\n")
+	keyNameRegex, err := regexp.Compile(`\[.*\]`)
+	const (
+		accessKeyKey = "aws_access_key_id"
+		secretKeyKey = "aws_secret_access_key"
+	)
+	if err != nil {
+		return AWSAccessKey, AWSSecretKey, fmt.Errorf("parseAWSSecret faulty regex: keyNameRegex")
+	}
+	awsAccessKeyRegex, err := regexp.Compile(`\b` + accessKeyKey + `\b`)
+	if err != nil {
+		return AWSAccessKey, AWSSecretKey, fmt.Errorf("parseAWSSecret faulty regex: awsAccessKeyRegex")
+	}
+	awsSecretKeyRegex, err := regexp.Compile(`\b` + secretKeyKey + `\b`)
+	if err != nil {
+		return AWSAccessKey, AWSSecretKey, fmt.Errorf("parseAWSSecret faulty regex: awsSecretKeyRegex")
+	}
+	for index, line := range splitString {
+		if line == "" {
+			continue
+		}
+		if keyNameRegex.MatchString(line) {
+			awsProfileRegex, err := regexp.Compile(`\[|\]`)
+			if err != nil {
+				return AWSAccessKey, AWSSecretKey, fmt.Errorf("parseAWSSecret faulty regex: keyNameRegex")
+			}
+			cleanedLine := strings.ReplaceAll(line, " ", "")
+			parsedProfile := awsProfileRegex.ReplaceAllString(cleanedLine, "")
+			if parsedProfile == matchProfile {
+				profile = matchProfile
+				// check for end of arr
+				if index+1 >= len(splitString) {
+					break
+				}
+				for _, profLine := range splitString[index+1:] {
+					if profLine == "" {
+						continue
+					}
+					matchedAccessKey := awsAccessKeyRegex.MatchString(profLine)
+					matchedSecretKey := awsSecretKeyRegex.MatchString(profLine)
+
+					if err != nil {
+						r.Log.Info("Error finding access key id for the supplied AWS credential")
+						return AWSAccessKey, AWSSecretKey, err
+					}
+					if matchedAccessKey { // check for access key
+						AWSAccessKey, err = r.getMatchedKeyValue(accessKeyKey, profLine)
+						if err != nil {
+							r.Log.Info("Error processing access key id for the supplied AWS credential")
+							return AWSAccessKey, AWSSecretKey, err
+						}
+						continue
+					} else if matchedSecretKey { // check for secret key
+						AWSSecretKey, err = r.getMatchedKeyValue(secretKeyKey, profLine)
+						if err != nil {
+							r.Log.Info("Error processing secret key id for the supplied AWS credential")
+							return AWSAccessKey, AWSSecretKey, err
+						}
+						continue
+					} else {
+						break // aws credentials file is only allowed to have profile followed by aws_access_key_id, aws_secret_access_key
+					}
+				}
+			}
+		}
+	}
+	if profile == "" {
+		r.Log.Info("Error finding AWS Profile for the supplied AWS credential")
+		return AWSAccessKey, AWSSecretKey, fmt.Errorf("error finding AWS Profile for the supplied AWS credential")
+	}
+	if AWSAccessKey == "" {
+		r.Log.Info("Error finding access key id for the supplied AWS credential")
+		return AWSAccessKey, AWSSecretKey, fmt.Errorf("error finding access key id for the supplied AWS credential")
+	}
+	if AWSSecretKey == "" {
+		r.Log.Info("Error finding secret access key for the supplied AWS credential")
+		return AWSAccessKey, AWSSecretKey, fmt.Errorf("error finding secret access key for the supplied AWS credential")
+	}
+
+	return AWSAccessKey, AWSSecretKey, nil
+}
+
+// Return value to the right of = sign with quotations and spaces removed.
+func (r *UploadSpeedTestReconciler) getMatchedKeyValue(key string, s string) (string, error) {
+	for _, removeChar := range []string{"\"", "'", " "} {
+		s = strings.ReplaceAll(s, removeChar, "")
+	}
+	for _, prefix := range []string{key, "="} {
+		s = strings.TrimPrefix(s, prefix)
+	}
+	if len(s) == 0 {
+		r.Log.Info(fmt.Sprintf("Could not parse secret for %s", key))
+		return s, fmt.Errorf("secret parsing error in key " + key)
+	}
+	return s, nil
+}
+
+func (r *UploadSpeedTestReconciler) getSecretNameAndKey(config map[string]string, credential *corev1.SecretKeySelector, plugin oadpv1alpha1.DefaultPlugin) (string, string, error) {
+	// Assume default values unless user has overriden them
+	secretName := credentials.PluginSpecificFields[plugin].SecretName
+	secretKey := credentials.PluginSpecificFields[plugin].PluginSecretKey
+	if _, ok := config["credentialsFile"]; ok {
+		if secretName, secretKey, err :=
+			credentials.GetSecretNameKeyFromCredentialsFileConfigString(config["credentialsFile"]); err == nil {
+			r.Log.Info(fmt.Sprintf("credentialsFile secret: %s, key: %s", secretName, secretKey))
+			return secretName, secretKey, nil
+		}
+	}
+	// check if user specified the Credential Name and Key
+	if credential != nil {
+		if len(credential.Name) > 0 {
+			secretName = credential.Name
+		}
+		if len(credential.Key) > 0 {
+			secretKey = credential.Key
+		}
+	}
+
+	err := r.verifySecretContent(secretName, secretKey)
+	if err != nil {
+		return secretName, secretKey, err
+	}
+
+	return secretName, secretKey, nil
+}
+
+func (r *UploadSpeedTestReconciler) verifySecretContent(secretName string, secretKey string) error {
+	secret, err := r.getProviderSecret(secretName)
+	if err != nil {
+		return err
+	}
+	data, foundKey := secret.Data[secretKey]
+	if !foundKey || len(data) == 0 {
+		return fmt.Errorf("Secret name %s is missing data for key %s", secretName, secretKey)
+	}
+	return nil
 }
