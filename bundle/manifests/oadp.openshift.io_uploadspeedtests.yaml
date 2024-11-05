@@ -196,18 +196,6 @@ spec:
                     - provider
                     type: object
                 type: object
-              cloudProviderSecretRef:
-                description: CloudProviderSecretRef is the reference to the secret
-                  to be used for authentication with object storage
-                properties:
-                  name:
-                    type: string
-                  namespace:
-                    type: string
-                required:
-                - name
-                - namespace
-                type: object
               uploadSpeedTestConfig:
                 description: UploadSpeedTestConfig defines the parameters for testing
                   upload speed
@@ -224,7 +212,6 @@ spec:
                 type: object
             required:
             - backupLocation
-            - cloudProviderSecretRef
             - uploadSpeedTestConfig
             type: object
           status:

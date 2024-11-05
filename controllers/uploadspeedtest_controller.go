@@ -133,19 +133,17 @@ func (r *UploadSpeedTestReconciler) initializeProvider(ust *oadpv1alpha1.UploadS
 	providerName := ust.Spec.BackupLocation.Velero.Provider
 	region := ust.Spec.BackupLocation.Velero.Config[Region]
 
-	// fetch the credentials from the secret
-	secret, err := r.getProviderSecret(ust.Spec.CloudProviderSecretRef.Name)
-	if err != nil {
-		r.Log.Error(err, "failed to get provider secret")
-		return nil, err
-	}
-
 	switch providerName {
 	case AWSProvider:
-		_, secretKey, _ := r.getSecretNameAndKey(ust.Spec.BackupLocation.Velero.Config, ust.Spec.BackupLocation.Velero.Credential, oadpv1alpha1.DefaultPluginAWS)
+		secretName, secretKey, _ := r.getSecretNameAndKey(ust.Spec.BackupLocation.Velero.Config, ust.Spec.BackupLocation.Velero.Credential, oadpv1alpha1.DefaultPluginAWS)
 		awsProfile := "default"
 		if value, exists := ust.Spec.BackupLocation.Velero.Config[Profile]; exists {
 			awsProfile = value
+		}
+		secret, err := r.getProviderSecret(secretName)
+		if err != nil {
+			r.Log.Error(err, "failed to get provider secret")
+			return nil, err
 		}
 		accessKeyID, secretAccessKey, err := r.parseAWSSecret(secret, secretKey, awsProfile)
 		if err != nil {

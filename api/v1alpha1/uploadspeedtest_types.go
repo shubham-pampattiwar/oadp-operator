@@ -27,9 +27,6 @@ type UploadSpeedTestSpec struct {
 
 	// UploadSpeedTestConfig defines the parameters for testing upload speed
 	UploadSpeedTestConfig UploadSpeedTestConfig `json:"uploadSpeedTestConfig"`
-
-	// CloudProviderSecretRef is the reference to the secret to be used for authentication with object storage
-	CloudProviderSecretRef CloudProviderSecretRef `json:"cloudProviderSecretRef"`
 }
 
 type UploadSpeedTestConfig struct {
