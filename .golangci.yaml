@@ -1,0 +1,102 @@
+version: "2"
+run:
+  modules-download-mode: readonly
+  allow-parallel-runners: false
+linters:
+  default: none
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - dogsled
+    - errchkjson
+    - goprintffuncname
+    - loggercheck
+    - nakedret
+    - nolintlint
+    - nosprintfhostport
+    - revive
+    - unparam
+    - usestdlibvars
+  settings:
+    dogsled:
+      max-blank-identifiers: 2
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    goconst:
+      min-len: 3
+      min-occurrences: 5
+    goheader:
+      template: |-
+        Copyright 2021.
+
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+
+            http://www.apache.org/licenses/LICENSE-2.0
+
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+    govet:
+      enable-all: true
+    misspell:
+      locale: US
+    nakedret:
+      max-func-lines: 30
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    revive:
+      rules:
+        - name: line-length-limit
+          disabled: true
+        - name: blank-imports
+        - name: dot-imports
+        - name: duplicated-imports
+        - name: import-alias-naming
+        - name: import-shadowing
+        - name: redundant-import-alias
+    unparam:
+      check-exported: true
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - revive
+        text: '^struct-tag: unknown option ''inline'' in JSON tag$'
+      - linters:
+          - staticcheck
+        text: 'ST1000:|ST1020:|ST1021:|ST1022:'
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+severity:
+  default: error
+formatters:
+  enable:
+    - gci
+    - gofmt
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/openshift/oadp-operator)
+    gofmt:
+      simplify: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

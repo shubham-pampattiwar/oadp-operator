@@ -1,7 +1,0 @@
-apiVersion: konveyor.openshift.io/v1alpha1
-kind: Velero
-metadata:
-  name: example-velero
-spec:
-  # Add fields here
-  size: 3

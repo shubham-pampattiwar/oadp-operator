@@ -1,0 +1,39 @@
+{
+  "spec": {
+      "configuration":{
+        "velero":{
+          "defaultPlugins": [
+            "openshift",
+            "aws",
+            "kubevirt",
+            "hypershift"
+          ]
+        }
+      },
+      "backupLocations": [
+        {
+          "velero": {
+            "provider": "aws",
+            "config": {
+              "profile": "default",
+              "region": "us-east-1"
+            },
+            "objectStorage":{
+              "bucket": "myBucket"
+            }
+          }
+        }
+      ],
+      "snapshotLocations": [
+        {
+          "velero": {
+            "provider": "aws",
+            "config": {
+              "profile": "default",
+              "region": "us-east-1"
+            }
+          }
+        }
+      ]
+  }
+}

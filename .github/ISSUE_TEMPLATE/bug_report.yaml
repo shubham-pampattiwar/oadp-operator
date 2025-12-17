@@ -1,0 +1,18 @@
+name: Bug Report [moved to jira]
+description: Click for details
+title: "Bug: "
+labels: ["redirected-to-jira"]
+body:
+- type: markdown
+  attributes:
+    value: |
+      ## Bug tracking has moved to [Jira](http://issues.redhat.com/browse/OADP)
+      ## [Open a new support case](https://access.redhat.com/support/cases/#/case/new) for assistance
+- type: dropdown
+  id: bughasmoved
+  attributes:
+    label: Only developers will use GitHub issues for development purposes
+    options:
+      - agree
+  validations:
+    required: true

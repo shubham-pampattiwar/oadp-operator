@@ -1,0 +1,35 @@
+apiVersion: oadp.openshift.io/v1alpha1
+kind: DataProtectionApplication
+metadata:
+  name: velero-sample
+spec:
+  configuration:
+    velero:
+      disableFsBackup: false
+      defaultPlugins:
+      - openshift
+      - aws
+      - kubevirt
+      - hypershift
+    nodeAgent:
+      enable: true
+      uploaderType: kopia
+  backupLocations:
+    - velero:
+        provider: aws
+        default: true
+        objectStorage:
+          bucket: my-bucket-name
+          prefix: velero
+        config:
+          region: us-east-1
+          profile: "default"
+        credential:
+          name: cloud-credentials
+          key: cloud
+  snapshotLocations:
+    - velero:
+        provider: aws
+        config:
+          region: us-west-2
+          profile: "default"

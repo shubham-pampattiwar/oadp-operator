@@ -1,0 +1,5 @@
+resources:
+# Velero roles
+- velero-service_account.yaml
+- velero-role.yaml
+- velero-role_binding.yaml
