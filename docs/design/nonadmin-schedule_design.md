@@ -122,7 +122,11 @@ NAC never sets `template.metadata.labels`, which keeps Velero inheriting the Sch
 NAC mirrors the backing Velero `Schedule` status, computes the next run from the cron expression and the later of the last backup and last skipped times, and records the five newest generated child backups.
 
 Deleting a `NonAdminSchedule` deletes the backing Velero `Schedule`, which stops future runs, and retains already created child NABs and their Velero `Backup` objects until their TTL expires or the tenant deletes a child NAB.
-Three cleanup paths exist and do not overlap: Velero removes a generated `Backup` at TTL and NAC then reaps the dangling child NAB; a tenant deleting a child NAB triggers the existing NAB delete path which removes the backing Backup; the garbage collector does not participate.
+Child NAB cleanup must survive `NonAdminSchedule` deletion, because the schedule may be deleted long before its retained backups expire.
+The NonAdminBackup controller owns the reap through its existing Velero `Backup` watch: when a schedule child NAB (identified by the `nas-origin-nacuuid` label) that has already reached the `Created` phase finds its backing Velero `Backup` gone, the controller deletes the child, independently of the NonAdminSchedule and of the garbage collector.
+Requiring the `Created` phase confirms the child synced at least once, so a transient cache miss cannot trigger a spurious deletion.
+
+Three cleanup paths exist and do not overlap: Velero removes a generated `Backup` at TTL and the NonAdminBackup controller then reaps the dangling child NAB (the NonAdminSchedule controller also reaps on its own reconcile while the schedule still exists, as a fast path); a tenant deleting a child NAB triggers the existing NAB delete path which removes the backing Backup; the garbage collector does not participate.
 
 ## Alternatives Considered
 
